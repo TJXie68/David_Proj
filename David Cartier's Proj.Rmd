@@ -1,0 +1,172 @@
+---
+title: "Report of Oral and Facial Study: Visualization and Interpretation"
+author: "Tianjian Xie, Amstrong Wang, Haochen Pan, Nuo Chen, Haochen Zhu "
+date: "2022-10-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plyr)
+library(dplyr)
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+library(magrittr)
+library(ggplot2)
+library(xlsx)
+```
+
+## Introduction
+Our client is David Cartier from Boston University Henry M. Goldman School of Dental Medicine. The client's goal is to analyze the different types of facial fractures from Maine Portland medical center and compare injuries between rural and urban populations.
+
+The client asked us to compare two different injury assessment scores between rural and urban populations. These scores are the injury severity score (ISS ) and Glasgow coma scale (GCS). The client also asked us to assess the relationship between injury mechanisms and these two scores, as well as explore factors affecting the frequency of hospital admissions.
+
+## Data Description
+The data consists of de-identified medical records for 318 patients from Maine Medical Center. Patients are classified as coming from rural areas or urban areas based on their Zip code and 2010 census data.
+
+The Glasgow Coma Scale (GCS) is used to objectively describe the extent of impaired consciousness in all types of acute medical and trauma patients. The scale assesses patients according to three aspects of responsiveness: eye-opening, motor, and verbal responses. This scale is from 1 to 15 which 13-15 being Mild, 9-12 being Moderate, and 3-8 being Severe.
+
+All injuries are assigned from an internationally recognized dictionary that describes over 2000 injuries. Multiple injuries are scored by adding together the squares of the three highest AIS scores. The ISS is the Injury severity score, which can range from 1 to 75, but we only have from 1 to 50. 
+```{r echo=FALSE}
+my_data <- read.xlsx("1717262_Data_5.10.2021_deidentified.xlsx",3)
+```
+
+## Exploratory Data Analysis
+Data Visualization:
+1. ISS vs GCS
+```{r echo=FALSE,warning=FALSE,message=FALSE,fig.cap='Figure 1: ISS Against GCS', fig.align='center'}
+data1 <- data.frame(ID=c(my_data$Study.ID..),
+                    ISS=c(as.numeric(my_data$ISS)),
+                    GCS=c(as.numeric(my_data$GCS.on.Admission)))
+
+
+ggplot(data = data1, aes(x = ISS, y = GCS)) + 
+  geom_point(color = "blue") +
+  geom_smooth(method = 'loess')
+my_data2 <- my_data[-199,]
+```
+In Figure 1, we can see that individuals with the largest GCS score tend to have a smaller ISS score.
+
+2. Total.Hospital.Days vs ISS
+```{r echo=FALSE,warning=FALSE,message=FALSE, fig.cap='Figure 2: Total.Hospital.Days vs ISS', fig.align='center'}
+na_rows <- grep("n/a",
+                 my_data$Total.Hospital.Days,
+                 ignore.case = T)
+all_rows <- 1:318
+use_rows <- setdiff(all_rows,na_rows)
+cleaned_data <- my_data %>% slice(use_rows)
+cleaned_data1 <- cleaned_data %>% select(ISS, Total.Hospital.Days)
+fit2 <- lm(Total.Hospital.Days~ISS, data = cleaned_data1)
+plot(cleaned_data1$ISS, cleaned_data1$Total.Hospital.Days, pch = 16, cex = 0.8, xlab = "ISS(Injury Severity Score)", ylab = "Total Hospital Days")
+abline(fit2)
+```
+Figure 2 shows the correlation between the total days patients stay in hospital and their ISS. The fitting line suggests that larger ISS is generally associated with longer stays in hospital. 
+
+3. Urban or Rural for ISS
+```{r echo=FALSE,warning=FALSE,message=FALSE, fig.width=10, fig.cap='Figure 3: Violin Plot of Urban or Rural for ISS', fig.align='center'}
+urban_rows <- grep("Urban",
+                my_data$Urban.Rural,
+                ignore.case = T)
+rural_rows <- grep("Rural",
+                   my_data$Urban.Rural,
+                   ignore.case = T)
+data2 <- my_data %>% slice(urban_rows)
+data3 <- my_data %>% slice(rural_rows)
+data5 <- data.frame(
+  name=c(my_data$Urban.Rural),
+  value=c(my_data$ISS)
+)
+data5 %>%
+  ggplot( aes(x=name, y=value, fill=name)) +
+    geom_violin(width=1) +
+    geom_boxplot(width=0.1, color="grey", alpha=0.2) +
+    scale_fill_viridis(discrete = TRUE) +
+    theme_ipsum() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    xlab("Urban or Rural") +
+    ylab("ISS Value")
+
+
+```
+Figure 3 shows for ISS, urban and rural patients are likely to have similar ISS, and the medians for both region are around 15. Compare to the rural patients, the urban patients' ISS are more concentrate to the median since the violin are wider.
+
+4. Urban or Rural for GCS 
+```{r echo=FALSE,warning=FALSE,message=FALSE, fig.width=10, fig.cap='Figure 4: Violin Plot of Urban or Rural for GCS', fig.align='center'}
+data7 <- data.frame(
+  name=c(my_data$Urban.Rural),
+  value=c(as.numeric(my_data$GCS.on.Admission))
+)
+data7 %>%
+  ggplot( aes(x=name, y=value, fill=name)) +
+    geom_violin(width=1) +
+    geom_boxplot(width=0.1, color="grey", alpha=0.2) +
+    scale_fill_viridis(discrete = TRUE) +
+    theme_ipsum() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Urban or Rural for GCS") +
+    xlab("Urban or Rural") +
+    ylab("GCS Value")
+
+```
+From figure 4, we can see that most of the patients' GCS are concentrated near 15, which is the top of the graph, and corresponding to less-severe injury. The concentration is somewhat larger for Urban compared to Rural. One possible explanation can be that people close to Maine Medical Center might go to Maine Medical Center even if they have less severe injuries, while people further away might not bother traveling that distance if they have less severe injuries.
+
+
+
+## Methods
+1. Fitting model for ISS and GCS
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+fit1 <- lm(GCS~ISS, data = data1)
+summary(fit1)
+```
+The summary of the model shows the estimate GCS of a patient with 0 ISS is 16.15777, and with every unit increase in ISS, the estimate GCS decrease by 0.24524. So with higher ISS, the patient is expected to have lower GCS. This shows a negative relationship between ISS and GCS.
+
+2. Fitting model for ISS and total days in hospital
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+fit2 <- lm(Total.Hospital.Days~ISS, data = cleaned_data1)
+summary(fit2)
+```
+The summary of the model shows the estimate of the days a patient with 0 ISS is 2.87866, and with every unit increase in ISS, the estimate day increase by 0.32508. So with higher ISS, the patient is expected to stay longer in hospital.
+
+3. Fitting model for ISS and Urban or Rural and make T test
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+#LM
+UR <- as.factor(my_data$Urban.Rural)
+ISS1 <- as.factor(my_data$ISS)
+lm1 <- lm(ISS1~UR)
+lm1
+
+#T test
+UrbISS <- as.numeric(data2$ISS)
+RurISS <- as.numeric(data3$ISS)
+t.test(UrbISS, RurISS)
+```
+The result of the t test of ISS based on the Urban or Rural.
+
+4. Fitting model for GCS and Urban or Rural and make KS test
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+#LM
+GCS1 <- as.factor(as.numeric(my_data$GCS.on.Admission))
+lm2 <- lm(GCS1~UR)
+lm2
+
+#KS test
+UrbGCS <- as.numeric(data2$GCS.on.Admission)
+RurGCS <- as.numeric(data3$GCS.on.Admission)
+ks.test(UrbGCS, RurGCS)
+```
+Based on the small p-values, we decided that a KS test was more appropriate than a t-test, because a KS test makes fewer assumptions about the underlying distribution. 
+
+Since the p-value is larger than 0.05, it's failed to reject the hypothesis. Then, the KS test said that we don't have enough evidence to say whether there was any marginal difference between Rural and Urban populations.
+
+## Discussion
+Our analysis of patients come from US 2010 census data shows that there is a negative and interactive relationship between ISS value and GCS value, and is related to urban/rural areas. ISS and GCS are normally distributed at a level at 0.05. In our analysis, urban or rural patients may have similar ISS and be more clustered towards the mean. However, the relationship between GCS and urban/rural cannot be directly explained through a linear relationship since we have evidence that ISS and GCS are not normally distributed. In the comparison of other variables, we also believe that factors such as hospitalization time and cause of injury have no way to directly affect the GCS value in different urban/rural situations.  
+
+## Conclusion
+Our linear model suggests that there isn't evidence that there is a relationship between GCS and whether a patient is from a rural or Urban origin. In our analysis, urban or rural patients may have similar ISS and be more clustered towards the mean. However, the linear model suggests that the is not much evidence of a relationship between GCS and whether a patient’s origin is urban or rural. Although the EDA suggests that there may be some relationship between these scores and whether a patient is from a rural or urban origin, our models suggest that there is not enough evidence to conclude that there is such a relationship.
